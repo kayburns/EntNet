@@ -6,8 +6,9 @@ local datasource = {}
 function datasource:load(data_path, batch_size, memory_size, dict, idict, sentence_length)
     assert(dict ~= nil and idict ~= nil or dict == nil and idict == nil)
     local max_sentence_length = 50
+    local max_question_length = 10
     local max_story_length = 1000
-    local max_questions = #data_path * 10000
+    local max_questions = #data_path * 12000
     local story = torch.zeros(max_questions, max_story_length, max_sentence_length)
     local line_ind, story_ind, sentence_ind, question_ind = 0, 0, 0, 0
     local max_words, max_sentences = 0, 0
@@ -50,6 +51,9 @@ function datasource:load(data_path, batch_size, memory_size, dict, idict, senten
 
         if words[1] == '1' then
             story_ind = story_ind + 1
+            if story_ind >= 10000 then
+                break
+            end
             sentence_ind = 0
             map = {}
         end
@@ -105,7 +109,7 @@ function datasource:load(data_path, batch_size, memory_size, dict, idict, senten
     local sentence_length = sentence_length or max_words
     story = story:sub(1, story_ind, 1, max_sentences, 1, sentence_length):clone()
     questions = questions:sub(1, question_ind):clone()
-    qstory = qstory:sub(1, question_ind, 1, sentence_length):clone()
+    qstory = qstory:sub(1, question_ind, 1, max_question_length):clone()
 
     self.batch_size = batch_size
     if dict == nil then
@@ -116,9 +120,9 @@ function datasource:load(data_path, batch_size, memory_size, dict, idict, senten
     else
         self.memsize = memory_size
     end
-    self.input = torch.zeros(batch_size, story:size(3))
+    self.input = torch.zeros(batch_size, max_question_length)
     self.target = torch.zeros(batch_size)
-    self.memory = torch.zeros(batch_size, self.memsize, sentence_length)
+    self.memory = torch.zeros(batch_size, self.memsize, max_question_length) -- TODO: is this size OK
 
     self.story = story
     self.qstory = qstory
@@ -173,7 +177,7 @@ function datasource:getBatch(batch)
     self.memory:fill(1)
     self.input:fill(1)
     for b = 1, self.batch_size do
-       local d = self.story[self.questions[batch[b]][1]]:sub(1, self.questions[batch[b]][2])
+        local d = self.story[self.questions[batch[b]][1]]:sub(1, self.questions[batch[b]][2])
         local offset = math.max(0, d:size(1) - self.memsize)
         d = d:sub(1 + offset, -1)
         self.memory[b]:sub(1, d:size(1), 1, d:size(2)):copy(d)

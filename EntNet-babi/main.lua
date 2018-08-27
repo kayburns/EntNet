@@ -72,7 +72,8 @@ function train()
         end
         train_err[ep] = total_err / total_num
         train_cost[ep] = total_cost / total_num
-        val_err[ep] = evaluate('valid')
+        --val_err[ep] = evaluate('valid')
+        val_err[ep] = evaluate('test')
 
         local log_string = 'epoch = ' .. ep
             .. ' | train cost = ' .. g_f4(train_cost[ep])
@@ -94,9 +95,9 @@ function evaluate(split, display)
     local N, indx
     if split == 'train' then
         N = train_range:size(1)
-        indx = train_range
+        indx = torch.range(1, N)
         data = trdata
-    elseif split == 'valid' then
+    elseif split == 'valid' then --unused
         N = val_range:size(1)
         indx = val_range
         data = trdata
@@ -120,53 +121,50 @@ function evaluate(split, display)
 final_perf_train = {}
 final_perf_val = {}
 final_perf_test = {}
-weights = {}
+--weights = {}
 
 for i = 1, opt.runs do
     print('--------------------')
     print('RUN ' .. i)
     print('--------------------')
     -- reset the weights 
-    g_make_deterministic(i)
+    g_make_deterministic(opt.save_num)
     model:reset()
     -- train
     final_perf_val[i] = train()
     final_perf_train[i] = evaluate('train')
     final_perf_test[i] = evaluate('test')
-    weights[i] = model.paramx:clone()
-    print('test error = ' .. g_f4(final_perf_test[i]))
+    --weights[i] = model.paramx:clone():float()
+    --print('test error = ' .. g_f4(final_perf_test[i]))
     print('val err')
     print(final_perf_val)
-    print('test err')
-    print(final_perf_test)
+    --print('test err')
+   -- print(final_perf_test)
 
     if opt.save ~= '' then
-       local log_string = 'run ' .. i 
+       local log_string = 'run ' .. opt.save_num 
           .. ' | train error = ' .. g_f4(final_perf_train[i]) 
           .. ' | valid error = ' .. g_f4(final_perf_val[i]) 
           .. ' | test error = ' .. g_f4(final_perf_test[i])
        write(opt.modelFilename .. '.log', log_string)
-       torch.save(opt.modelFilename .. '.model', {final_perf_val = final_perf_val, 
-                     final_perf_test = final_perf_test, 
-                     model = model, 
-                     optstate = optstate, 
-                     weights = weights})
+       save_file = opt.modelFilename .. '_init_num_' .. opt.save_num .. '.model' 
+       torch.save(save_file, {final_perf_val = {}, 
+       --torch.save(opt.modelFilename .. '_init_num_' .. i .. '.model', {final_perf_val = final_perf_val, 
+                     final_perf_test = {}, 
+                     --final_perf_test = final_perf_test, 
+                     model = cpu_copy(model),
+                     optstate = {}}) 
+                     --optstate = optstate, 
+                     --weights = {}})
+                     --weights = weights})
+                     --'binary', false)
     end
-
-    if final_perf_val[i] == 0 then
+    --if final_perf_val[i] == 0 then
        -- we will pick this run and don't need more
-       break
-    end
+    --   break
+    --end
 end
 
 -- pick test error based on validation performance
 _, best = torch.Tensor(final_perf_val):min(1)
 
-if opt.save ~= '' then
-    write(opt.modelFilename .. '.log', 'final test error = ' .. final_perf_test[best[1]])
-    torch.save(opt.modelFilename .. '.model', {final_perf_val = final_perf_val, 
-                  final_perf_test = final_perf_test, 
-                  model = model, 
-                  optstate = optstate, 
-                  weights = weights})
-end

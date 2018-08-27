@@ -5,7 +5,7 @@
 cmd = torch.CmdLine()
 -- dataset parameters
 cmd:option('-task', 1)
-cmd:option('-dataPath', 'data/tasks_1-20_v1-2/en-10k/')
+cmd:option('-dataPath', 'data/tasks_1-20_v1-2/en-10k-emb-50/')
 -- model parameters
 cmd:option('-model', 'entnet')
 cmd:option('-embed', 'icmul+bow', 'bow | icmul+bow')
@@ -26,11 +26,12 @@ cmd:option('-epochs', 200)
 cmd:option('-gpu', 1, 'which gpu to use')
 cmd:option('-runs', 10)
 cmd:option('-save', 'outputs/')
+cmd:option('-save_num', 0)
 
 opt = cmd:parse(arg or {})
 cutorch.setDevice(opt.gpu)
 opt.use_time = (opt.use_time == 1)
-print(opt)
+--print(opt)
 
 if not paths.dirp(opt.save) then
     os.execute('mkdir -p ' .. opt.save)
@@ -47,11 +48,11 @@ for f in paths.files(opt.dataPath, 'qa' .. opt.task .. '_') do
 end
 
 -- max number of timesteps
-if opt.task == 3 then 
-   opt.T = 150 
-else
-   opt.T = 70
-end
+--if opt.task == 3 then 
+--   opt.T = 150 
+--else
+opt.T = 70
+--end
 
 -- set filename based on parameters
 opt.modelFilename = opt.save

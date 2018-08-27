@@ -161,6 +161,16 @@ function build_model(opt)
       end
    end
 
+   function model:fprop_cpu(question, answer, story)
+      self.mask = story:ne(1):sum(3):select(3,1):ne(0)
+      self.logprob = self.network:forward({question:float(), story:float(), self.keys:float(), self.mask:float()})
+      local cost = self.loss:forward(self.logprob, answer:float())
+      local _, pred = self.logprob:max(2)
+      local missed = pred:ne(answer:long())
+      return missed:sum(), cost, missed, pred
+   end
+
+
    function model:fprop(question, answer, story)
       self.mask = story:ne(1):sum(3):select(3,1):ne(0):cuda()
       self.logprob = self.network:forward({question, story, self.keys, self.mask})
@@ -184,3 +194,25 @@ function build_model(opt)
 
    return model
 end
+
+-- http://wiki.roblox.com/index.php/Cloning_tables
+function shallowCopy(original)
+    local copy = {}
+    for key, value in pairs(original) do
+        copy[key] = value
+    end
+    return copy
+end
+
+function cpu_copy(model)
+    local model_clone = shallowCopy(model)
+    -- clone original model params and convert to cpu
+    model_clone.network = model.network:clone():float()
+    model_clone.paramx, model_clone.paramdx = model.paramx:clone():float(), model.paramdx:clone():float()
+    model_clone.keys = model.keys:clone():float()
+    model_clone.loss = model.loss:clone():float()
+    model_clone.mask = model.mask:clone():float()
+    model_clone.logprob = model.logprob:clone():float()
+    return model_clone
+end
+
